@@ -2,6 +2,12 @@
 
 CLI client for [expert-service](https://github.com/benthomasson/expert-service) — ask questions, search beliefs, and query domain knowledge bases from the terminal or Claude Code.
 
+## Run Without Installing
+
+```bash
+uvx --from git+https://github.com/benthomasson/expert expert ask "Who is Ben Thomasson?"
+```
+
 ## Install
 
 ```bash
