@@ -21,12 +21,16 @@ CONFIG_FILE = CONFIG_DIR / "config.toml"
 
 
 def _parse_toml(path: Path) -> dict:
-    """Parse a simple TOML file. Handles [sections] and key = "value" pairs."""
+    """Parse a simple TOML file. Handles [sections] and key = "value" pairs.
+
+    Keys before any section header are placed in the "default" section.
+    """
     if not path.exists():
         return {}
 
     config = {}
-    current_section = None
+    current_section = "default"
+    config[current_section] = {}
 
     for line in path.read_text().splitlines():
         line = line.strip()
@@ -35,7 +39,7 @@ def _parse_toml(path: Path) -> dict:
         if line.startswith("[") and line.endswith("]"):
             current_section = line[1:-1].strip()
             config.setdefault(current_section, {})
-        elif "=" in line and current_section is not None:
+        elif "=" in line:
             key, _, value = line.partition("=")
             key = key.strip()
             value = value.strip().strip('"').strip("'")
