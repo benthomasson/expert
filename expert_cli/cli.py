@@ -165,6 +165,37 @@ def cmd_status(_args: list[str]):
         print(f"Default project: {config['project']}")
 
 
+def cmd_install_skill(_args: list[str]):
+    from pathlib import Path
+    import shutil
+
+    # Find the SKILL.md bundled with the package
+    skill_src = Path(__file__).parent.parent / ".claude" / "skills" / "expert" / "SKILL.md"
+    if not skill_src.exists():
+        # Fallback: try the installed package location
+        skill_src = Path(__file__).parent / "SKILL.md"
+
+    if not skill_src.exists():
+        print("Error: SKILL.md not found in package")
+        sys.exit(1)
+
+    # Determine target directory
+    skill_dir = None
+    if "--skill-dir" in _args:
+        idx = _args.index("--skill-dir")
+        if idx + 1 < len(_args):
+            skill_dir = Path(_args[idx + 1])
+
+    if not skill_dir:
+        # Default: user-level skill
+        skill_dir = Path.home() / ".claude" / "skills" / "expert"
+
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    dest = skill_dir / "SKILL.md"
+    shutil.copy2(skill_src, dest)
+    print(f"Skill installed: {dest}")
+
+
 def cmd_init(_args: list[str]):
     from .config import init_config
     init_config()
@@ -187,6 +218,7 @@ def main():
         "logout": cmd_logout,
         "status": cmd_status,
         "init": cmd_init,
+        "install-skill": cmd_install_skill,
     }
 
     if command in commands:
