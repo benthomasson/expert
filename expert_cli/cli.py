@@ -1,0 +1,157 @@
+"""CLI for expert-service.
+
+Usage:
+    expert ask <question> [--project NAME] [--model MODEL]
+    expert search <query> [--project NAME]
+    expert projects
+    expert chat <message> [--project NAME] [--model MODEL]
+
+Environment:
+    EXPERT_URL       Base URL of expert-service (default: http://localhost:8000)
+    EXPERT_API_KEY   Bearer token for authentication
+    EXPERT_PROJECT   Default project name (avoids --project on every call)
+"""
+
+import os
+import sys
+
+from . import client
+
+
+def _get_project(args: list[str]) -> str:
+    """Extract --project from args or fall back to EXPERT_PROJECT env var."""
+    project = None
+    if "--project" in args:
+        idx = args.index("--project")
+        if idx + 1 < len(args):
+            project = args[idx + 1]
+            del args[idx:idx + 2]
+        else:
+            print("Error: --project requires a value")
+            sys.exit(1)
+    elif "-p" in args:
+        idx = args.index("-p")
+        if idx + 1 < len(args):
+            project = args[idx + 1]
+            del args[idx:idx + 2]
+        else:
+            print("Error: -p requires a value")
+            sys.exit(1)
+
+    if not project:
+        project = os.environ.get("EXPERT_PROJECT", "")
+
+    if not project:
+        print("Error: specify --project or set EXPERT_PROJECT")
+        sys.exit(1)
+
+    return client.resolve_project(project)
+
+
+def _get_model(args: list[str]) -> str | None:
+    """Extract --model from args."""
+    if "--model" in args:
+        idx = args.index("--model")
+        if idx + 1 < len(args):
+            model = args[idx + 1]
+            del args[idx:idx + 2]
+            return model
+    return None
+
+
+def cmd_ask(args: list[str]):
+    model = _get_model(args)
+    project_id = _get_project(args)
+    question = " ".join(args)
+    if not question:
+        print("Usage: expert ask <question> [--project NAME]")
+        sys.exit(1)
+
+    result = client.ask(project_id, question, model=model)
+    print(result.get("answer", result))
+
+
+def cmd_search(args: list[str]):
+    project_id = _get_project(args)
+    query = " ".join(args)
+    if not query:
+        print("Usage: expert search <query> [--project NAME]")
+        sys.exit(1)
+
+    result = client.search(project_id, query)
+
+    beliefs = result.get("beliefs", [])
+    entries = result.get("entries", [])
+
+    if beliefs:
+        print(f"=== Beliefs ({len(beliefs)}) ===")
+        for b in beliefs:
+            status = b.get("truth_value", "?")
+            print(f"  [{status}] {b['text'][:120]}")
+
+    if entries:
+        print(f"\n=== Entries ({len(entries)}) ===")
+        for e in entries:
+            print(f"  {e.get('title', e.get('topic', '?'))}")
+
+    if not beliefs and not entries:
+        print("No results.")
+
+
+def cmd_projects(_args: list[str]):
+    projects = client.list_projects()
+    if not projects:
+        print("No projects.")
+        return
+    print(f"{'Name':<30} {'Domain':<25} {'Beliefs':<10} {'Entries':<10} {'Sources':<10}")
+    print("-" * 95)
+    for p in projects:
+        print(f"{p['name']:<30} {p['domain']:<25} {p.get('belief_count', '?'):<10} "
+              f"{p.get('entry_count', '?'):<10} {p.get('source_count', '?'):<10}")
+
+
+def cmd_chat(args: list[str]):
+    model = _get_model(args)
+    project_id = _get_project(args)
+    message = " ".join(args)
+    if not message:
+        print("Usage: expert chat <message> [--project NAME]")
+        sys.exit(1)
+
+    for chunk in client.chat_stream(project_id, message, model=model):
+        print(chunk, end="", flush=True)
+    print()
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+
+    command = sys.argv[1]
+    args = sys.argv[2:]
+
+    commands = {
+        "ask": cmd_ask,
+        "search": cmd_search,
+        "projects": cmd_projects,
+        "chat": cmd_chat,
+    }
+
+    if command in commands:
+        try:
+            commands[command](args)
+        except ValueError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+    else:
+        print(f"Unknown command: {command}")
+        print(__doc__)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
