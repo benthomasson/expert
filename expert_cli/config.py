@@ -6,6 +6,8 @@ Reads ~/.config/expert/config.toml with the following format:
     url = "https://expert.example.com"
     api_key = "your-key"
     project = "redhat-expert"
+    google_client_id = "your-id.apps.googleusercontent.com"
+    google_client_secret = "your-secret"
 
 Environment variables override config file values.
 CLI flags override both.
@@ -53,6 +55,8 @@ def load_config() -> dict:
         "url": os.environ.get("EXPERT_URL", file_config.get("url", "http://localhost:8000")),
         "api_key": os.environ.get("EXPERT_API_KEY", file_config.get("api_key", "")),
         "project": os.environ.get("EXPERT_PROJECT", file_config.get("project", "")),
+        "google_client_id": os.environ.get("GOOGLE_CLIENT_ID", file_config.get("google_client_id", "")),
+        "google_client_secret": os.environ.get("GOOGLE_CLIENT_SECRET", file_config.get("google_client_secret", "")),
     }
 
 
@@ -68,5 +72,7 @@ def init_config():
 url = "http://localhost:8000"
 # api_key = "your-api-key"
 # project = "redhat-expert"
+# google_client_id = "your-id.apps.googleusercontent.com"
+# google_client_secret = "your-secret"
 """)
     print(f"Created config: {CONFIG_FILE}")

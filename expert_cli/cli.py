@@ -5,13 +5,17 @@ Usage:
     expert search <query> [--project NAME]
     expert projects
     expert chat <message> [--project NAME] [--model MODEL]
+    expert login                         Google OAuth login (browser flow)
+    expert logout                        Clear cached credentials
+    expert status                        Check authentication status
     expert init                          Create config at ~/.config/expert/config.toml
 
 Config file (~/.config/expert/config.toml):
     [default]
     url = "https://expert.example.com"
-    api_key = "your-key"
     project = "redhat-expert"
+    google_client_id = "your-id.apps.googleusercontent.com"
+    google_client_secret = "your-secret"
 
 Environment variables override config file. CLI flags override both.
 """
@@ -127,6 +131,40 @@ def cmd_chat(args: list[str]):
     print()
 
 
+def cmd_login(args: list[str]):
+    from .auth import login
+    port = 8085
+    if "--port" in args:
+        idx = args.index("--port")
+        if idx + 1 < len(args):
+            port = int(args[idx + 1])
+    login(port=port)
+
+
+def cmd_logout(_args: list[str]):
+    from .auth import TOKEN_FILE
+    if TOKEN_FILE.exists():
+        TOKEN_FILE.unlink()
+        print("Logged out. Token removed.")
+    else:
+        print("No cached token.")
+
+
+def cmd_status(_args: list[str]):
+    from .auth import check_token
+    config = load_config()
+    print(f"URL: {config['url']}")
+    if config["api_key"]:
+        print("Auth: static API key")
+    elif config["google_client_id"]:
+        print("Auth: Google OAuth")
+        check_token()
+    else:
+        print("Auth: none configured")
+    if config["project"]:
+        print(f"Default project: {config['project']}")
+
+
 def cmd_init(_args: list[str]):
     from .config import init_config
     init_config()
@@ -145,6 +183,9 @@ def main():
         "search": cmd_search,
         "projects": cmd_projects,
         "chat": cmd_chat,
+        "login": cmd_login,
+        "logout": cmd_logout,
+        "status": cmd_status,
         "init": cmd_init,
     }
 

@@ -26,6 +26,12 @@ def _headers() -> dict[str, str]:
     api_key = _get_config()["api_key"]
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
+    else:
+        # Fall back to Google OAuth ID token
+        from .auth import get_id_token
+        id_token = get_id_token()
+        if id_token:
+            headers["Authorization"] = f"Bearer {id_token}"
     return headers
 
 
