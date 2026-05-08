@@ -1,21 +1,29 @@
 """HTTP client for expert-service API."""
 
-import os
-
 import httpx
 
+from .config import load_config
 
-DEFAULT_URL = "http://localhost:8000"
+
 TIMEOUT = 120.0
+
+_config = None
+
+
+def _get_config() -> dict:
+    global _config
+    if _config is None:
+        _config = load_config()
+    return _config
 
 
 def _base_url() -> str:
-    return os.environ.get("EXPERT_URL", DEFAULT_URL).rstrip("/")
+    return _get_config()["url"].rstrip("/")
 
 
 def _headers() -> dict[str, str]:
     headers = {}
-    api_key = os.environ.get("EXPERT_API_KEY", "")
+    api_key = _get_config()["api_key"]
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     return headers

@@ -5,17 +5,21 @@ Usage:
     expert search <query> [--project NAME]
     expert projects
     expert chat <message> [--project NAME] [--model MODEL]
+    expert init                          Create config at ~/.config/expert/config.toml
 
-Environment:
-    EXPERT_URL       Base URL of expert-service (default: http://localhost:8000)
-    EXPERT_API_KEY   Bearer token for authentication
-    EXPERT_PROJECT   Default project name (avoids --project on every call)
+Config file (~/.config/expert/config.toml):
+    [default]
+    url = "https://expert.example.com"
+    api_key = "your-key"
+    project = "redhat-expert"
+
+Environment variables override config file. CLI flags override both.
 """
 
-import os
 import sys
 
 from . import client
+from .config import load_config
 
 
 def _get_project(args: list[str]) -> str:
@@ -39,7 +43,7 @@ def _get_project(args: list[str]) -> str:
             sys.exit(1)
 
     if not project:
-        project = os.environ.get("EXPERT_PROJECT", "")
+        project = load_config()["project"]
 
     if not project:
         print("Error: specify --project or set EXPERT_PROJECT")
@@ -123,6 +127,11 @@ def cmd_chat(args: list[str]):
     print()
 
 
+def cmd_init(_args: list[str]):
+    from .config import init_config
+    init_config()
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -136,6 +145,7 @@ def main():
         "search": cmd_search,
         "projects": cmd_projects,
         "chat": cmd_chat,
+        "init": cmd_init,
     }
 
     if command in commands:
