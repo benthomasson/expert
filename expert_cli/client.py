@@ -96,6 +96,28 @@ def search(project_id: str, query: str) -> dict:
     return resp.json()
 
 
+def explain(project_id: str, node_id: str) -> dict:
+    """Explain why a belief is IN or OUT."""
+    resp = httpx.get(
+        f"{_base_url()}/api/projects/{project_id}/beliefs/{node_id}/explain",
+        headers=_headers(),
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_belief(project_id: str, node_id: str) -> dict:
+    """Get full details for a belief."""
+    resp = httpx.get(
+        f"{_base_url()}/api/projects/{project_id}/beliefs/{node_id}",
+        headers=_headers(),
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
 def chat_stream(project_id: str, message: str,
                 model: str | None = None,
                 thread_id: str | None = None):

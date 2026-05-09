@@ -79,6 +79,51 @@ def cmd_ask(args: list[str]):
     print(result.get("answer", result))
 
 
+def cmd_explain(args: list[str]):
+    project_id = _get_project(args)
+    node_id = " ".join(args)
+    if not node_id:
+        print("Usage: expert explain <belief-id> [--project NAME]")
+        sys.exit(1)
+
+    # Get the belief details and explanation
+    belief = client.get_belief(project_id, node_id)
+    explain = client.explain(project_id, node_id)
+
+    status = belief.get("truth_value", "?")
+    print(f"[{status}] {node_id}")
+    print(f"  {belief.get('text', '')}")
+    if belief.get("source"):
+        print(f"  Source: {belief['source']}")
+    if belief.get("source_url"):
+        print(f"  URL: {belief['source_url']}")
+
+    # Explanation steps (why IN or OUT)
+    steps = explain.get("steps", [])
+    if steps:
+        print(f"\nExplanation:")
+        for s in steps:
+            print(f"  [{s.get('truth_value', '?')}] {s['node']} — {s.get('reason', '?')}")
+
+    # Justifications (what supports this belief)
+    justifications = belief.get("justifications", [])
+    if justifications:
+        print(f"\nJustifications ({len(justifications)}):")
+        for j in justifications:
+            jtype = j.get("type", "?")
+            label = j.get("label", j.get("id", "?"))
+            print(f"  [{jtype}] {label}")
+
+    # Dependents (what this belief supports)
+    dependents = belief.get("dependents", [])
+    if dependents:
+        print(f"\nDependents ({len(dependents)}):")
+        for d in dependents:
+            dep_status = d.get("truth_value", "?")
+            dep_id = d if isinstance(d, str) else d.get("id", "?")
+            print(f"  {dep_id}")
+
+
 def cmd_search(args: list[str]):
     project_id = _get_project(args)
     query = " ".join(args)
@@ -100,7 +145,12 @@ def cmd_search(args: list[str]):
     if entries:
         print(f"\n=== Entries ({len(entries)}) ===")
         for e in entries:
-            print(f"  {e.get('title', e.get('topic', '?'))}")
+            topic = e.get('topic', '?')
+            title = e.get('title', '')
+            if title and title != topic:
+                print(f"  {topic}: {title}")
+            else:
+                print(f"  {topic}")
 
     sources = result.get("sources", [])
     if sources:
@@ -223,6 +273,7 @@ def main():
 
     commands = {
         "ask": cmd_ask,
+        "explain": cmd_explain,
         "search": cmd_search,
         "projects": cmd_projects,
         "chat": cmd_chat,
