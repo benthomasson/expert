@@ -102,7 +102,19 @@ def cmd_search(args: list[str]):
         for e in entries:
             print(f"  {e.get('title', e.get('topic', '?'))}")
 
-    if not beliefs and not entries:
+    sources = result.get("sources", [])
+    if sources:
+        print(f"\n=== Sources ({len(sources)}) ===")
+        for s in sources:
+            label = s.get("source_slug", "?")
+            if s.get("section"):
+                label += f" / {s['section']}"
+            snippet = s.get("snippet", "")[:120]
+            print(f"  [{label}] {snippet}")
+            if s.get("source_url"):
+                print(f"    {s['source_url']}")
+
+    if not beliefs and not entries and not sources:
         print("No results.")
 
 
