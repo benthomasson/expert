@@ -6,10 +6,12 @@ requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "httpx>=0.27",
+    "mcp[cli]>=1.0",
 ]
 
 [project.scripts]
 expert = "expert_cli.cli:main"
+expert-mcp = "expert_cli.mcp_server:main"
 
 [build-system]
 requires = ["hatchling"]

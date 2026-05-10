@@ -5,19 +5,24 @@ Usage:
     expert search <query> [--project NAME]
     expert projects
     expert chat <message> [--project NAME] [--model MODEL]
+    expert import-reasons <path> --name NAME [--domain DOMAIN]
     expert login                         Google OAuth login (browser flow)
     expert logout                        Clear cached credentials
     expert status                        Check authentication status
     expert init                          Create config at ~/.config/expert/config.toml
 
-Config file (~/.config/expert/config.toml):
+Config priority (highest wins):
+    CLI flags > env vars > .expert.toml (local) > ~/.config/expert/config.toml (global)
+
+Local config (.expert.toml in repo root):
+    project = "redhat-expert"
+
+Global config (~/.config/expert/config.toml):
     [default]
     url = "https://expert.example.com"
     project = "redhat-expert"
     google_client_id = "your-id.apps.googleusercontent.com"
     google_client_secret = "your-secret"
-
-Environment variables override config file. CLI flags override both.
 """
 
 import sys
@@ -214,6 +219,7 @@ def cmd_logout(_args: list[str]):
 
 def cmd_status(_args: list[str]):
     from .auth import check_token
+    from .config import _find_local_config
     config = load_config()
     print(f"URL: {config['url']}")
     if config["api_key"]:
@@ -225,6 +231,9 @@ def cmd_status(_args: list[str]):
         print("Auth: none configured")
     if config["project"]:
         print(f"Default project: {config['project']}")
+    local = _find_local_config()
+    if local:
+        print(f"Local config: {local}")
 
 
 def cmd_install_skill(_args: list[str]):
@@ -258,9 +267,63 @@ def cmd_install_skill(_args: list[str]):
     print(f"Skill installed: {dest}")
 
 
+def cmd_import_reasons(args: list[str]):
+    """Import a reasons.db file to create a new project with beliefs."""
+    # Parse --name and --domain flags
+    name = None
+    domain = ""
+
+    if "--name" in args:
+        idx = args.index("--name")
+        if idx + 1 < len(args):
+            name = args[idx + 1]
+            del args[idx:idx + 2]
+        else:
+            print("Error: --name requires a value")
+            sys.exit(1)
+
+    if "--domain" in args:
+        idx = args.index("--domain")
+        if idx + 1 < len(args):
+            domain = args[idx + 1]
+            del args[idx:idx + 2]
+        else:
+            print("Error: --domain requires a value")
+            sys.exit(1)
+
+    # Remaining arg is the path to reasons.db
+    if not args:
+        print("Usage: expert import-reasons <path/to/reasons.db> --name NAME [--domain DOMAIN]")
+        sys.exit(1)
+
+    db_path = args[0]
+
+    import os.path
+    if not os.path.isfile(db_path):
+        print(f"Error: file not found: {db_path}")
+        sys.exit(1)
+
+    # Default name from parent directory
+    if not name:
+        name = os.path.basename(os.path.dirname(os.path.abspath(db_path)))
+        if not name or name == ".":
+            name = os.path.splitext(os.path.basename(db_path))[0]
+
+    result = client.import_reasons(db_path, name, domain)
+    print(f"Project created: {result['name']}")
+    print(f"  ID: {result['project_id']}")
+    print(f"  Beliefs: {result['beliefs']}")
+    print(f"  Nogoods: {result['nogoods']}")
+
+
 def cmd_init(_args: list[str]):
     from .config import init_config
     init_config()
+
+
+def cmd_mcp(_args: list[str]):
+    from .mcp_server import main
+    main()
 
 
 def main():
@@ -282,6 +345,8 @@ def main():
         "status": cmd_status,
         "init": cmd_init,
         "install-skill": cmd_install_skill,
+        "import-reasons": cmd_import_reasons,
+        "mcp": cmd_mcp,
     }
 
     if command in commands:

@@ -118,6 +118,59 @@ def get_belief(project_id: str, node_id: str) -> dict:
     return resp.json()
 
 
+def what_if(project_id: str, node_id: str, action: str = "retract") -> dict:
+    """Simulate retracting or asserting a belief."""
+    resp = httpx.get(
+        f"{_base_url()}/api/projects/{project_id}/beliefs/{node_id}/what-if",
+        params={"action": action},
+        headers=_headers(),
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def list_beliefs(project_id: str, status: str | None = None) -> dict:
+    """List beliefs, optionally filtered by status (IN/OUT)."""
+    params = {}
+    if status:
+        params["status"] = status
+    resp = httpx.get(
+        f"{_base_url()}/api/projects/{project_id}/beliefs",
+        params=params,
+        headers=_headers(),
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def list_entries(project_id: str, topic: str | None = None) -> list[dict]:
+    """List entries for a project."""
+    params = {}
+    if topic:
+        params["topic"] = topic
+    resp = httpx.get(
+        f"{_base_url()}/api/projects/{project_id}/entries",
+        params=params,
+        headers=_headers(),
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_entry(project_id: str, entry_id: str) -> dict:
+    """Get full entry content."""
+    resp = httpx.get(
+        f"{_base_url()}/api/projects/{project_id}/entries/{entry_id}",
+        headers=_headers(),
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
 def chat_stream(project_id: str, message: str,
                 model: str | None = None,
                 thread_id: str | None = None):
@@ -143,3 +196,29 @@ def chat_stream(project_id: str, message: str,
                 if data == "[DONE]":
                     break
                 yield data
+
+
+def create_project(name: str, domain: str) -> dict:
+    """Create a new project. Returns project dict with id."""
+    resp = httpx.post(
+        f"{_base_url()}/api/projects",
+        json={"name": name, "domain": domain},
+        headers=_headers(),
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def import_reasons(db_path: str, name: str, domain: str = "") -> dict:
+    """Upload a reasons.db to create a project with beliefs."""
+    with open(db_path, "rb") as f:
+        resp = httpx.post(
+            f"{_base_url()}/api/projects/import-reasons",
+            files={"file": ("reasons.db", f, "application/octet-stream")},
+            data={"name": name, "domain": domain},
+            headers=_headers(),
+            timeout=TIMEOUT,
+        )
+    resp.raise_for_status()
+    return resp.json()

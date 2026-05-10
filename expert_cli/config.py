@@ -1,6 +1,19 @@
 """Configuration file support.
 
-Reads ~/.config/expert/config.toml with the following format:
+Reads config from three layers (highest priority wins):
+
+    1. Environment variables (EXPERT_URL, EXPERT_PROJECT, etc.)
+    2. Local .expert.toml — searched upward from cwd to filesystem root
+    3. Global ~/.config/expert/config.toml
+
+CLI flags override all three.
+
+Local config (.expert.toml) example — put in your repo root:
+
+    project = "redhat-expert"
+    url = "https://expert.ftl2.com"
+
+Global config (~/.config/expert/config.toml):
 
     [default]
     url = "https://expert.example.com"
@@ -8,9 +21,6 @@ Reads ~/.config/expert/config.toml with the following format:
     project = "redhat-expert"
     google_client_id = "your-id.apps.googleusercontent.com"
     google_client_secret = "your-secret"
-
-Environment variables override config file values.
-CLI flags override both.
 """
 
 import os
@@ -18,6 +28,7 @@ from pathlib import Path
 
 CONFIG_DIR = Path.home() / ".config" / "expert"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
+LOCAL_CONFIG_NAME = ".expert.toml"
 
 
 def _parse_toml(path: Path) -> dict:
@@ -48,19 +59,38 @@ def _parse_toml(path: Path) -> dict:
     return config
 
 
-def load_config() -> dict:
-    """Load config from file, returning the [default] section.
+def _find_local_config() -> Path | None:
+    """Search upward from cwd for .expert.toml."""
+    current = Path.cwd()
+    while True:
+        candidate = current / LOCAL_CONFIG_NAME
+        if candidate.is_file():
+            return candidate
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
 
-    Priority: environment variables > config file values.
+
+def load_config() -> dict:
+    """Load config from local file, global file, and environment.
+
+    Priority: environment variables > local .expert.toml > global config.toml.
     """
-    file_config = _parse_toml(CONFIG_FILE).get("default", {})
+    global_config = _parse_toml(CONFIG_FILE).get("default", {})
+
+    local_path = _find_local_config()
+    local_config = _parse_toml(local_path).get("default", {}) if local_path else {}
+
+    def _get(key: str, env_var: str, default: str = "") -> str:
+        return os.environ.get(env_var) or local_config.get(key) or global_config.get(key, default)
 
     return {
-        "url": os.environ.get("EXPERT_URL", file_config.get("url", "http://localhost:8000")),
-        "api_key": os.environ.get("EXPERT_API_KEY", file_config.get("api_key", "")),
-        "project": os.environ.get("EXPERT_PROJECT", file_config.get("project", "")),
-        "google_client_id": os.environ.get("GOOGLE_CLIENT_ID", file_config.get("google_client_id", "")),
-        "google_client_secret": os.environ.get("GOOGLE_CLIENT_SECRET", file_config.get("google_client_secret", "")),
+        "url": _get("url", "EXPERT_URL", "http://localhost:8000"),
+        "api_key": _get("api_key", "EXPERT_API_KEY"),
+        "project": _get("project", "EXPERT_PROJECT"),
+        "google_client_id": _get("google_client_id", "GOOGLE_CLIENT_ID"),
+        "google_client_secret": _get("google_client_secret", "GOOGLE_CLIENT_SECRET"),
     }
 
 
