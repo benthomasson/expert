@@ -273,7 +273,31 @@ def check_token() -> bool:
     return False
 
 
-def login(port: int = 8085) -> None:
+def _verify_against_server(token: dict) -> bool:
+    """Check if the token is accepted by the configured expert-service URL."""
+    config = load_config()
+    url = config.get("url", "").rstrip("/")
+    if not url:
+        return True  # No URL configured, skip verification
+
+    id_token = token.get("id_token")
+    if not id_token:
+        return False
+
+    try:
+        resp = httpx.get(
+            f"{url}/api/projects",
+            headers={"Authorization": f"Bearer {id_token}"},
+            timeout=5.0,
+        )
+        return resp.status_code == 200
+    except httpx.ConnectError:
+        return True  # Server unreachable — don't force re-login
+    except Exception:
+        return False
+
+
+def login(port: int = 8085, force: bool = False) -> None:
     """Run the full Google OAuth browser login flow."""
     config = load_config()
     client_id = config.get("google_client_id", "")
@@ -285,22 +309,35 @@ def login(port: int = 8085) -> None:
         print('  google_client_id = "your-client-id.apps.googleusercontent.com"')
         return
 
-    # Check existing token first
+    # Check existing token first (skip if --force)
     token = _load_token()
-    if token:
+    if token and not force:
         if _is_valid(token):
-            remaining = (token.get("expires_at", 0) - time.time()) / 60
-            print(f"Already authenticated ({remaining:.0f} minutes remaining)")
-            return
-        # Try refresh before browser
-        print("Token expired, trying refresh...")
-        new_token = _refresh_token(token)
-        if new_token:
-            _save_token(new_token)
-            remaining = (new_token.get("expires_at", 0) - time.time()) / 60
-            print(f"Token refreshed ({remaining:.0f} minutes remaining)")
-            return
-        print("Refresh failed, starting browser login...")
+            # Verify token works against the target server
+            if _verify_against_server(token):
+                remaining = (token.get("expires_at", 0) - time.time()) / 60
+                print(f"Already authenticated ({remaining:.0f} minutes remaining)")
+                return
+            else:
+                url = config.get("url", "")
+                print(f"Token not accepted by {url}, starting browser login...")
+        else:
+            # Try refresh before browser
+            print("Token expired, trying refresh...")
+            new_token = _refresh_token(token)
+            if new_token:
+                _save_token(new_token)
+                if _verify_against_server(new_token):
+                    remaining = (new_token.get("expires_at", 0) - time.time()) / 60
+                    print(f"Token refreshed ({remaining:.0f} minutes remaining)")
+                    return
+                else:
+                    url = config.get("url", "")
+                    print(f"Refreshed token not accepted by {url}, starting browser login...")
+            else:
+                print("Refresh failed, starting browser login...")
+    elif force:
+        print("Forcing re-login...")
 
     redirect_uri = f"http://localhost:{port}/callback"
 

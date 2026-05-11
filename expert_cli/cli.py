@@ -6,7 +6,7 @@ Usage:
     expert projects
     expert chat <message> [--project NAME] [--model MODEL]
     expert import-reasons <path> --name NAME [--domain DOMAIN]
-    expert login                         Google OAuth login (browser flow)
+    expert login [--force]               Google OAuth login (browser flow)
     expert logout                        Clear cached credentials
     expert status                        Check authentication status
     expert init                          Create config at ~/.config/expert/config.toml
@@ -201,11 +201,12 @@ def cmd_chat(args: list[str]):
 def cmd_login(args: list[str]):
     from .auth import login
     port = 8085
+    force = "--force" in args
     if "--port" in args:
         idx = args.index("--port")
         if idx + 1 < len(args):
             port = int(args[idx + 1])
-    login(port=port)
+    login(port=port, force=force)
 
 
 def cmd_logout(_args: list[str]):
