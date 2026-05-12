@@ -6,6 +6,7 @@ Uses the same invoke_model pattern as reasons_lib.
 """
 
 import os
+import re
 import shutil
 import subprocess
 
@@ -74,6 +75,72 @@ def _get_model(model: str | None) -> str:
         return model
     config = load_config()
     return config.get("llm", "") or os.getenv("EXPERT_LLM_MODEL", "") or "claude"
+
+
+def get_model(model: str | None = None) -> str:
+    """Resolve model name from arg, config, or default."""
+    return _get_model(model)
+
+
+def clean_refs(text: str, valid_keys: set[str]) -> tuple[str, set[str]]:
+    """Remove hallucinated refs and return (cleaned_text, cited_keys).
+
+    Valid keys come from the deep-search response (belief cite_keys and
+    source slugs). Anything in [brackets] that isn't a valid key, a markdown
+    link, or a common pattern gets removed entirely.
+
+    Returns the cleaned text and the set of valid keys actually cited.
+    """
+    cited = set()
+
+    def _replace(m):
+        key = m.group(1)
+        # Skip markdown links [text](url)
+        end = m.end()
+        if end < len(text) and text[end] == '(':
+            return m.group(0)
+        # Keep if it matches a valid citation key
+        if key in valid_keys:
+            cited.add(key)
+            return m.group(0)
+        # Keep common markdown patterns: checkboxes, footnote-style
+        if key in ('x', ' ', '!') or key.startswith('^'):
+            return m.group(0)
+        # Remove entirely — hallucinated references have no value
+        return ''
+
+    cleaned = re.sub(r'\[([^\]]+)\]', _replace, text)
+    return cleaned, cited
+
+
+def build_sources_section(cited_keys: set[str], beliefs: list[dict],
+                          sources: list[dict]) -> str:
+    """Build a Sources/Beliefs section from cited keys and deep-search metadata."""
+    cited_beliefs = [b for b in beliefs if b.get("cite_key") in cited_keys]
+    cited_sources = [s for s in sources if s.get("cite_key") in cited_keys
+                     or s.get("slug") in cited_keys]
+
+    lines = []
+
+    if cited_sources:
+        lines.append("\n\n## Sources\n")
+        for s in cited_sources:
+            label = s.get("label", s.get("slug", ""))
+            key = s.get("cite_key", s.get("slug", ""))
+            url = s.get("url", "")
+            if url:
+                lines.append(f"- **[{key}]** {label} — [source]({url})")
+            else:
+                lines.append(f"- **[{key}]** {label}")
+
+    if cited_beliefs:
+        lines.append("\n\n## Beliefs\n")
+        for b in cited_beliefs:
+            key = b.get("cite_key", "")
+            label = b.get("label", "")
+            lines.append(f"- **[{key}]** {label}")
+
+    return "\n".join(lines)
 
 
 def synthesize(question: str, beliefs: str, sources: str, model: str | None = None) -> str:

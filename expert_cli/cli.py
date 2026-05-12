@@ -3,6 +3,7 @@
 Usage:
     expert ask <question> [--project NAME] [--model MODEL]
     expert ask-local <question> [--project NAME] [--model MODEL]
+    expert deep-search <query> [--project NAME]
     expert search <query> [--project NAME]
     expert projects
     expert chat <message> [--project NAME] [--model MODEL]
@@ -103,9 +104,55 @@ def cmd_ask_local(args: list[str]):
         sys.exit(0)
 
     # Phase 2: local LLM synthesis
-    from .synthesis import synthesize
+    from .synthesis import get_model, synthesize, clean_refs, build_sources_section
+    resolved_model = get_model(model)
+    print(f"[model: {resolved_model}]", file=sys.stderr)
     answer = synthesize(question, belief_ctx, chunk_ctx, model=model)
+
+    # Phase 3: strip hallucinated references and build sources section
+    beliefs = result.get("beliefs", [])
+    sources = result.get("sources", [])
+    valid_keys = set()
+    for b in beliefs:
+        if b.get("cite_key"):
+            valid_keys.add(b["cite_key"])
+    for s in sources:
+        if s.get("cite_key"):
+            valid_keys.add(s["cite_key"])
+        if s.get("slug"):
+            valid_keys.add(s["slug"])
+    answer, cited_keys = clean_refs(answer, valid_keys)
+    answer += build_sources_section(cited_keys, beliefs, sources)
+
     print(answer)
+
+
+def cmd_deep_search(args: list[str]):
+    project_id = _get_project(args)
+    query = " ".join(args)
+    if not query:
+        print("Usage: expert deep-search <query> [--project NAME]")
+        sys.exit(1)
+
+    result = client.deep_search(project_id, query)
+
+    belief_ctx = result.get("belief_context", "")
+    chunk_ctx = result.get("chunk_context", "")
+    b_count = result.get("belief_count", 0)
+    s_count = result.get("source_count", 0)
+
+    if belief_ctx:
+        print(f"=== Beliefs ({b_count}) ===\n")
+        print(belief_ctx)
+
+    if chunk_ctx:
+        if belief_ctx:
+            print()
+        print(f"=== Sources ({s_count}) ===\n")
+        print(chunk_ctx)
+
+    if not belief_ctx and not chunk_ctx:
+        print("No results.")
 
 
 def cmd_explain(args: list[str]):
@@ -362,6 +409,7 @@ def main():
     commands = {
         "ask": cmd_ask,
         "ask-local": cmd_ask_local,
+        "deep-search": cmd_deep_search,
         "explain": cmd_explain,
         "search": cmd_search,
         "projects": cmd_projects,
