@@ -2,6 +2,7 @@
 
 Usage:
     expert ask <question> [--project NAME] [--model MODEL]
+    expert ask-local <question> [--project NAME] [--model MODEL]
     expert search <query> [--project NAME]
     expert projects
     expert chat <message> [--project NAME] [--model MODEL]
@@ -82,6 +83,29 @@ def cmd_ask(args: list[str]):
 
     result = client.ask(project_id, question, model=model)
     print(result.get("answer", result))
+
+
+def cmd_ask_local(args: list[str]):
+    model = _get_model(args)
+    project_id = _get_project(args)
+    question = " ".join(args)
+    if not question:
+        print("Usage: expert ask-local <question> [--project NAME] [--model MODEL]")
+        sys.exit(1)
+
+    # Phase 1: server-side retrieval (no LLM)
+    result = client.deep_search(project_id, question)
+    belief_ctx = result.get("belief_context", "")
+    chunk_ctx = result.get("chunk_context", "")
+
+    if not belief_ctx and not chunk_ctx:
+        print("No matching beliefs or source documents found.")
+        sys.exit(0)
+
+    # Phase 2: local LLM synthesis
+    from .synthesis import synthesize
+    answer = synthesize(question, belief_ctx, chunk_ctx, model=model)
+    print(answer)
 
 
 def cmd_explain(args: list[str]):
@@ -337,6 +361,7 @@ def main():
 
     commands = {
         "ask": cmd_ask,
+        "ask-local": cmd_ask_local,
         "explain": cmd_explain,
         "search": cmd_search,
         "projects": cmd_projects,

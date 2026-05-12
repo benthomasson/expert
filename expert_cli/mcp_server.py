@@ -105,6 +105,27 @@ def get_entry(entry_id: str, project: str = "") -> str:
 
 
 @mcp.tool()
+def deep_search(query: str, project: str = "") -> str:
+    """Comprehensive search with IDF-ranked results from both beliefs and source documents.
+
+    This is the recommended search tool — it runs the same dual-path retrieval
+    as the server's /ask endpoint but returns structured context instead of
+    a synthesized answer. Returns pre-ranked beliefs and source passages
+    ready for you to synthesize an answer from.
+
+    Use this instead of calling search + list_beliefs + get_entry separately.
+    One call gives you everything you need.
+
+    Args:
+        query: The question or search terms
+        project: Project name (uses default if empty)
+    """
+    project_id = _resolve(project or _default_project())
+    result = client.deep_search(project_id, query)
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
 def list_projects() -> str:
     """List all available expert knowledge bases with belief/entry/source counts."""
     result = client.list_projects()

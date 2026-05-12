@@ -91,6 +91,7 @@ def load_config() -> dict:
         "project": _get("project", "EXPERT_PROJECT"),
         "google_client_id": _get("google_client_id", "GOOGLE_CLIENT_ID"),
         "google_client_secret": _get("google_client_secret", "GOOGLE_CLIENT_SECRET"),
+        "llm": _get("llm", "EXPERT_LLM_MODEL"),
     }
 
 

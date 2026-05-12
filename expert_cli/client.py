@@ -198,6 +198,18 @@ def chat_stream(project_id: str, message: str,
                 yield data
 
 
+def deep_search(project_id: str, query: str) -> dict:
+    """Dual-path retrieval with IDF ranking — no LLM needed."""
+    resp = httpx.get(
+        f"{_base_url()}/api/projects/{project_id}/deep-search",
+        params={"q": query},
+        headers=_headers(),
+        timeout=TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
 def create_project(name: str, domain: str) -> dict:
     """Create a new project. Returns project dict with id."""
     resp = httpx.post(
